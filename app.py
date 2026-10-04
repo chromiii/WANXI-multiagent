@@ -4,7 +4,6 @@ import streamlit as st
 
 from wanxi_geo.config import get_settings
 from wanxi_geo.crawler import WebsiteCrawler
-from wanxi_geo.llm import OpenAICompatibleClient
 from wanxi_geo.orchestrator import AgentOrchestrator
 
 
@@ -12,7 +11,7 @@ st.set_page_config(page_title="WANXI GEO Agent Studio", page_icon="🧭", layout
 
 settings = get_settings()
 st.title("WANXI GEO Agent Studio")
-st.caption("Project 2 · 本地部署 · Router + Multi-Agent + GEO website analysis")
+st.caption("Project 2 · CrewAI · Hybrid Router · GEO website analysis · local deploy")
 
 with st.sidebar:
     st.subheader("运行配置")
@@ -22,6 +21,7 @@ with st.sidebar:
     )
     refresh = st.checkbox("强制刷新官网缓存", value=False)
     st.divider()
+    st.write("**Framework:** CrewAI")
     st.write(f"**LLM Provider:** {settings.llm_provider}")
     st.write(f"**Model:** {settings.llm_model}")
     st.caption("模型配置请在 .env 中修改；页面不接收 API Key，避免录屏时泄露。")
@@ -54,7 +54,7 @@ if st.button("开始分析", type="primary", use_container_width=True):
         st.stop()
 
     try:
-        with st.status("正在准备网站知识并执行 Agent…", expanded=True) as status:
+        with st.status("正在准备网站知识并执行 CrewAI…", expanded=True) as status:
             st.write("1/3 读取官网或本地缓存")
             crawler = WebsiteCrawler(timeout=settings.request_timeout)
             documents = crawler.load_or_crawl(
@@ -65,10 +65,10 @@ if st.button("开始分析", type="primary", use_container_width=True):
             )
             st.write(f"已加载 {len(documents)} 个页面。")
 
-            st.write("2/3 Router 规划 Agent 调用链")
-            orchestrator = AgentOrchestrator(OpenAICompatibleClient(settings))
+            st.write("2/3 Hybrid Router 规划 Agent 调用链")
+            orchestrator = AgentOrchestrator(settings)
 
-            st.write("3/3 执行 Agent 并整合结果")
+            st.write("3/3 CrewAI 创建 Agent / Task / Crew 并执行")
             result = orchestrator.run(question.strip(), documents)
             status.update(label="分析完成", state="complete")
 
@@ -76,19 +76,18 @@ if st.button("开始分析", type="primary", use_container_width=True):
             {"question": question.strip(), "result": result.model_dump()}
         )
 
+        st.success(f"{result.framework} · Process: {result.crew_process}")
         tab1, tab2, tab3, tab4 = st.tabs(
-            ["Router / Trace", "中间结果", "最终报告", "网站来源"]
+            ["Router / Crew Trace", "中间结果", "最终报告", "网站来源"]
         )
 
         with tab1:
             st.subheader("Routing Decision")
             st.json(result.routing.model_dump())
-            st.subheader("Agent Trace")
+            st.subheader("CrewAI Agent / Task Trace")
             for trace in result.agent_traces:
                 icon = "✅" if trace.status == "completed" else "❌"
-                with st.expander(
-                    f"{icon} {trace.agent} · {trace.duration_ms} ms", expanded=True
-                ):
+                with st.expander(f"{icon} {trace.agent}", expanded=True):
                     if trace.error:
                         st.error(trace.error)
                     else:
@@ -116,4 +115,8 @@ if st.session_state.history:
         for i, item in enumerate(reversed(st.session_state.history[-5:]), start=1):
             st.markdown(f"**{i}. {item['question']}**")
             routing = item["result"]["routing"]
-            st.code(" -> ".join(step["name"] for step in routing["agents"]))
+            st.code(
+                "Router -> "
+                + " -> ".join(step["name"] for step in routing["agents"])
+                + " -> final_synthesizer"
+            )

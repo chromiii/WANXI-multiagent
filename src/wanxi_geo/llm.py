@@ -13,8 +13,34 @@ class LLMError(RuntimeError):
     pass
 
 
+def extract_json_object(raw: str) -> dict[str, Any]:
+    """Best-effort JSON extraction for local models that may add code fences."""
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    try:
+        value = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise LLMError(f"Model did not return JSON: {raw[:500]}")
+        try:
+            value = json.loads(cleaned[start : end + 1])
+        except json.JSONDecodeError as exc:
+            raise LLMError(f"Invalid JSON from model: {raw[:800]}") from exc
+
+    if not isinstance(value, dict):
+        raise LLMError("Expected a JSON object from model.")
+    return value
+
+
 class OpenAICompatibleClient:
-    """Minimal client for Ollama, DeepSeek, OpenAI and compatible APIs."""
+    """Small client used only by the explicit Router fallback.
+
+    Agent execution itself is handled by CrewAI.
+    """
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -63,26 +89,8 @@ class OpenAICompatibleClient:
             "Do not wrap it in Markdown and do not add commentary outside JSON."
         )
         raw = self.chat(strict_system, user_prompt)
-        return self._extract_json(raw)
+        return extract_json_object(raw)
 
     @staticmethod
     def _extract_json(raw: str) -> dict[str, Any]:
-        cleaned = raw.strip()
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.I)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-
-        try:
-            value = json.loads(cleaned)
-        except json.JSONDecodeError:
-            start = cleaned.find("{")
-            end = cleaned.rfind("}")
-            if start == -1 or end == -1 or end <= start:
-                raise LLMError(f"Model did not return JSON: {raw[:500]}")
-            try:
-                value = json.loads(cleaned[start : end + 1])
-            except json.JSONDecodeError as exc:
-                raise LLMError(f"Invalid JSON from model: {raw[:800]}") from exc
-
-        if not isinstance(value, dict):
-            raise LLMError("Expected a JSON object from model.")
-        return value
+        return extract_json_object(raw)
