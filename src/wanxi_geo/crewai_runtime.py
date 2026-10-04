@@ -32,6 +32,25 @@ def build_crewai_llm(settings: Settings) -> LLM:
 class CrewAIRuntime:
     """Translate Router plans into CrewAI Agents, Tasks and a sequential Crew."""
 
+    SYNTH_SECTION_BY_AGENT: dict[str, str] = {
+        "website_analyst": "官网现状 / 关键发现",
+        "geo_diagnostic": "GEO 诊断",
+        "question_generator": "目标客户问题",
+        "content_strategy": "内容优化建议与优先级",
+    }
+
+    SYNTH_FORBIDDEN_BY_AGENT: dict[str, str] = {
+        "geo_diagnostic": (
+            "Do not perform GEO diagnosis, create GEO strengths/gaps, or assign GEO rubric scores."
+        ),
+        "question_generator": (
+            "Do not generate customer questions, personas, customer stages, or inferred query lists."
+        ),
+        "content_strategy": (
+            "Do not create content recommendations, P0/P1/P2 priorities, roadmaps, or future strategy."
+        ),
+    }
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self.llm = build_crewai_llm(settings)
@@ -78,11 +97,7 @@ class CrewAIRuntime:
 
         synth_task = Task(
             description=self._synth_task_description(question, ordered_names),
-            expected_output=(
-                "A concise Chinese Markdown report that directly answers the user, uses the "
-                "authoritative specialist-agent roster/count, preserves material source URLs, "
-                "separates facts from diagnosis/recommendations, and states uncertainty."
-            ),
+            expected_output=self._synth_expected_output(ordered_names),
             agent=synthesizer,
             context=ordered_tasks,
             markdown=True,
@@ -156,20 +171,86 @@ class CrewAIRuntime:
             return "One concise valid JSON object matching the Content Strategy operating prompt."
         raise ValueError(f"Unknown task name: {name}")
 
-    @staticmethod
-    def _synth_task_description(question: str, ordered_names: list[str]) -> str:
+    @classmethod
+    def _synth_task_description(cls, question: str, ordered_names: list[str]) -> str:
         roster = ", ".join(ordered_names)
+        required_sections = [
+            "本次调用的 Agent 与原因",
+            *[
+                cls.SYNTH_SECTION_BY_AGENT[name]
+                for name in ordered_names
+                if name in cls.SYNTH_SECTION_BY_AGENT
+            ],
+            "引用依据 / source URLs",
+            "边界与不确定性",
+        ]
+
+        forbidden_work = [
+            instruction
+            for agent, instruction in cls.SYNTH_FORBIDDEN_BY_AGENT.items()
+            if agent not in ordered_names
+        ]
+
+        output_limits: list[str] = [
+            "Use only the supplied specialist task outputs.",
+            "Do not add new company facts.",
+            "Do not create a report section that is not listed in REQUIRED_SECTION_ORDER.",
+            "Omit absent specialist work entirely instead of filling it in yourself.",
+            "Preserve material source URLs and clearly state evidence limitations.",
+        ]
+        if "geo_diagnostic" in ordered_names:
+            output_limits.append("Summarize at most 4 GEO strengths and 5 GEO gaps.")
+        if "question_generator" in ordered_names:
+            output_limits.append("Show at most 8 representative customer questions.")
+        if "content_strategy" in ordered_names:
+            output_limits.append(
+                "Show at most 8 content recommendations while preserving P0/P1/P2 priority."
+            )
+
+        sections_text = "\n".join(
+            f"{index}. {section}" for index, section in enumerate(required_sections, start=1)
+        )
+        forbidden_text = (
+            "\n".join(f"- {item}" for item in forbidden_work)
+            if forbidden_work
+            else "- None. All specialist capabilities in this workflow were selected."
+        )
+        limits_text = "\n".join(f"- {item}" for item in output_limits)
+
         return (
-            "Answer the original user question by integrating the specialist task outputs.\n\n"
+            "Answer the original user question by integrating only the selected specialist task "
+            "outputs. The following final-report contract is authoritative.\n\n"
             f"ORIGINAL_USER_QUESTION:\n{question}\n\n"
             f"SELECTED_SPECIALIST_COUNT: {len(ordered_names)}\n"
             f"SELECTED_SPECIALIST_AGENTS: {roster}\n"
             "INTEGRATION_AGENT: final_synthesizer\n\n"
-            "The roster/count above are authoritative. Do not rename, recount or change them. "
-            "Do not count final_synthesizer as a selected specialist. "
-            "Do not introduce new company facts. Clearly separate observed website facts, "
-            "GEO interpretations, and future recommendations. Prefer high-value findings over "
-            "repeating every upstream item."
+            "REQUIRED_SECTION_ORDER:\n"
+            f"{sections_text}\n\n"
+            "FORBIDDEN_WORK:\n"
+            f"{forbidden_text}\n\n"
+            "OUTPUT_RULES:\n"
+            f"{limits_text}\n\n"
+            "The selected-agent roster, section order, forbidden work, and output rules above "
+            "must be followed exactly. final_synthesizer is an integration/presentation layer, "
+            "not a substitute specialist."
+        )
+
+    @classmethod
+    def _synth_expected_output(cls, ordered_names: list[str]) -> str:
+        sections = [
+            "本次调用的 Agent 与原因",
+            *[
+                cls.SYNTH_SECTION_BY_AGENT[name]
+                for name in ordered_names
+                if name in cls.SYNTH_SECTION_BY_AGENT
+            ],
+            "引用依据 / source URLs",
+            "边界与不确定性",
+        ]
+        return (
+            "A concise Chinese Markdown report containing exactly these report sections in order: "
+            + " | ".join(sections)
+            + ". Do not add sections for unselected specialist capabilities."
         )
 
     @staticmethod
