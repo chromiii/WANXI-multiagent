@@ -30,6 +30,8 @@ Agent + Task + Task.context
         ↓
 Crew(Process.sequential)
         ↓
+Stage-aware Final Prompt Builder
+        ↓
 Final Synthesizer
 ```
 
@@ -127,7 +129,15 @@ flowchart TD
 
 ### Final Synthesizer
 
-整合所有本次被调用 Agent 的结果，形成最终业务报告，但禁止引入新的公司事实。
+最终层采用 **Stage-aware Final Prompt Builder**，先由代码根据本次实际执行的 specialist stages 生成最终报告契约，再交给 Final Synthesizer 做整合与表达。
+
+代码决定：
+- 哪些章节允许出现；
+- 哪些 specialist 能力在本次必须禁止；
+- 各章节的输出上限；
+- 最终章节顺序。
+
+因此未执行 `geo_diagnostic` 时不会出现 GEO 诊断，未执行 `question_generator` 时不会生成客户问题，未执行 `content_strategy` 时不会生成 P0/P1/P2 建议。Final Synthesizer 只负责组织已执行 Agent 的结果，不替代未调用的 specialist。
 
 ## Router 逻辑
 
@@ -384,7 +394,8 @@ final_synthesizer
 4. GEO Diagnostic 明确区分 Observation 和 Recommendation。
 5. Content Strategy 可以提出新内容，但必须标成未来建议，不能冒充现有事实。
 6. CrewAI Task.context 传递结构化上游输出，减少不同 Agent 重复“猜事实”。
-7. Final Synthesizer 只能整合前序任务结果，禁止增加新的公司事实。
+7. Stage-aware Final Prompt Builder 根据本次实际执行的 Agent 动态生成允许章节和禁止项。
+8. Final Synthesizer 只能整合这些已执行阶段的结果，不能替代未调用的 specialist，也禁止增加新的公司事实。
 
 ## 项目目录
 
@@ -441,7 +452,9 @@ python -m pytest -q
 - Content Strategy 是否由代码自动补齐必要上游依赖；
 - Router 输出是否能正确转换成 CrewAI Task graph；
 - 爬虫和轻量检索是否正常工作；
-- Router Prompt 是否不包含 query → Agent 示例映射。
+- Router Prompt 是否不包含 query → Agent 示例映射；
+- Final Prompt 是否只包含本次已执行 specialist 对应的章节；
+- 未选择的 GEO / 问题生成 / 内容策略能力是否被明确禁止。
 
 ## 为什么没有把 Router 完全交给 CrewAI
 
@@ -478,4 +491,4 @@ python -m pytest -q
 
 ## 面试时的一句话解释
 
-> 系统先由独立的 LLM Intent Router 进行语义意图识别，只输出最小必要的 specialist agents；代码随后对白名单和结构进行校验，并以 deterministic dependency resolver 补齐任务依赖；CrewAI 再动态创建 Agents、Tasks 和 Task.context 执行多 Agent 协作，最后由 Synthesizer 汇总。规则只用于 LLM 路由失败时的降级，不参与正常语义判断。
+> 系统先由独立的 LLM Intent Router 做语义意图识别，只输出最小必要的 specialist agents；代码对白名单和结构进行校验，并用 deterministic dependency resolver 补齐任务依赖；CrewAI 执行选中的 Agents/Tasks 后，Stage-aware Final Prompt Builder 根据实际执行阶段生成最终报告契约，Synthesizer 只整合允许的 specialist 输出。规则只用于 LLM 路由失败时的降级，不参与正常语义判断。
