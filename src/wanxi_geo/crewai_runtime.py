@@ -77,15 +77,11 @@ class CrewAIRuntime:
             ordered_names.append(spec.name)
 
         synth_task = Task(
-            description=(
-                "Answer the original user question by integrating the specialist task outputs.\n"
-                f"ORIGINAL_USER_QUESTION:\n{question}\n\n"
-                "Do not introduce new company facts. Clearly separate observed website facts, "
-                "GEO interpretations, and future recommendations."
-            ),
+            description=self._synth_task_description(question, ordered_names),
             expected_output=(
-                "A concise Chinese Markdown report that directly answers the user, names the "
-                "agents used, preserves source URLs/evidence, and states uncertainty."
+                "A concise Chinese Markdown report that directly answers the user, uses the "
+                "authoritative specialist-agent roster/count, preserves material source URLs, "
+                "separates facts from diagnosis/recommendations, and states uncertainty."
             ),
             agent=synthesizer,
             context=ordered_tasks,
@@ -151,14 +147,30 @@ class CrewAIRuntime:
     @staticmethod
     def _expected_output(name: str) -> str:
         if name == "website_analyst":
-            return "One valid JSON object matching the Website Analyst operating prompt."
+            return "One concise valid JSON object matching the Website Analyst operating prompt."
         if name == "geo_diagnostic":
-            return "One valid JSON object matching the GEO Diagnostic operating prompt."
+            return "One concise valid JSON object matching the GEO Diagnostic operating prompt."
         if name == "question_generator":
-            return "One valid JSON object matching the Question Generator operating prompt."
+            return "One concise valid JSON object matching the Question Generator operating prompt."
         if name == "content_strategy":
-            return "One valid JSON object matching the Content Strategy operating prompt."
+            return "One concise valid JSON object matching the Content Strategy operating prompt."
         raise ValueError(f"Unknown task name: {name}")
+
+    @staticmethod
+    def _synth_task_description(question: str, ordered_names: list[str]) -> str:
+        roster = ", ".join(ordered_names)
+        return (
+            "Answer the original user question by integrating the specialist task outputs.\n\n"
+            f"ORIGINAL_USER_QUESTION:\n{question}\n\n"
+            f"SELECTED_SPECIALIST_COUNT: {len(ordered_names)}\n"
+            f"SELECTED_SPECIALIST_AGENTS: {roster}\n"
+            "INTEGRATION_AGENT: final_synthesizer\n\n"
+            "The roster/count above are authoritative. Do not rename, recount or change them. "
+            "Do not count final_synthesizer as a selected specialist. "
+            "Do not introduce new company facts. Clearly separate observed website facts, "
+            "GEO interpretations, and future recommendations. Prefer high-value findings over "
+            "repeating every upstream item."
+        )
 
     @staticmethod
     def _task_description(
@@ -200,7 +212,7 @@ class CrewAIRuntime:
             return (
                 "Produce a prioritized GEO content roadmap. Relevant upstream Agent outputs are "
                 "supplied through CrewAI task context; explicitly tie recommendations to those "
-                "findings/questions.\n\n"
+                "findings/questions. Make deliberate trade-offs instead of an exhaustive list.\n\n"
                 f"USER_QUESTION:\n{question}"
             )
 
