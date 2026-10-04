@@ -5,12 +5,11 @@ import json
 
 from .config import get_settings
 from .crawler import WebsiteCrawler
-from .llm import OpenAICompatibleClient
 from .orchestrator import AgentOrchestrator
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="WANXI local GEO multi-agent demo")
+    parser = argparse.ArgumentParser(description="WANXI local CrewAI GEO multi-agent demo")
     parser.add_argument("question", help="Question for the GEO multi-agent system")
     parser.add_argument("--url", default=None, help="Target website URL")
     parser.add_argument("--max-pages", type=int, default=None)
@@ -32,8 +31,10 @@ def main() -> None:
         refresh=args.refresh,
     )
 
-    result = AgentOrchestrator(OpenAICompatibleClient(settings)).run(args.question, documents)
+    result = AgentOrchestrator(settings).run(args.question, documents)
 
+    print("\n=== Framework ===")
+    print(f"{result.framework} / {result.crew_process}")
     print("\n=== Routing ===")
     print(json.dumps(result.routing.model_dump(), ensure_ascii=False, indent=2))
     print("\n=== Agent Traces ===")

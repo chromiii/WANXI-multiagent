@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     llm_timeout: int = 120
     llm_temperature: float = 0.2
 
+    crewai_verbose: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

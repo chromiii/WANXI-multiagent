@@ -2,72 +2,215 @@
 
 > 万悉科技 AI 高级工程师笔试 Project 2：基于万悉官网的 GEO 智能体协作系统。
 
-这是一个**可本地部署**的 GEO（Generative Engine Optimization）网站分析 Demo。系统读取万悉科技官网内容，根据用户问题通过 Router 自动选择 Agent，并展示 Agent 调用链、中间结果和最终结构化建议。
+这是一个可本地部署的 **CrewAI Multi-Agent GEO Demo**。系统读取万悉科技官网内容，先由 Hybrid Router 判断用户意图并生成执行计划，再动态创建 CrewAI Agents / Tasks / Crew，执行官网分析、GEO 诊断、用户问题生成、内容策略和最终整合。
 
-## 核心能力
+## 为什么这样设计
 
-- 官网采集与本地缓存：BeautifulSoup + requests，限制同域页面，避免每次重复抓取。
-- Hybrid Router：优先使用确定性规则；模糊问题再使用 LLM Router。
-- 4 个职责清晰的 Agent：
-  - Website Analyst：提取品牌定位、产品能力、技术关键词、服务对象、核心表达。
-  - GEO Diagnostic：判断内容是否便于 AI 理解、抽取和引用。
-  - Question Generator：模拟目标客户可能向 ChatGPT / DeepSeek / Gemini / Perplexity 提问的问题。
-  - Content Strategy：根据前序结果给出 FAQ / Blog / 案例页 / 产品页建议与优先级。
-- 真正的多 Agent 依赖：下游 Agent 消费上游结构化结果，而不是固定把多个 Prompt 全跑一遍。
-- 可解释执行：返回 Router 决策、调用 Agent 列表、每个 Agent 中间结果和最终整合结果。
-- 两种入口：Streamlit Web Demo + CLI。
-- 两种模型部署方式：
-  - **Ollama（默认）**：模型完全运行在本机。
-  - **DeepSeek / OpenAI-compatible API**：程序本地运行，模型通过 API 调用。
+笔试要求的重点不是“写几个 Prompt”，而是：
 
-## 架构
+1. 根据用户问题决定调用哪个 Agent；
+2. 复杂问题能够调用多个 Agent；
+3. 上游 Agent 的输出真正成为下游 Agent 的输入；
+4. 页面能展示 Agent 调用过程和中间结果。
+
+因此本项目采用：
+
+```text
+Hybrid Router（显式、可解释）
+        ↓
+Execution Plan
+        ↓
+CrewAI Runtime
+        ↓
+Agent + Task + Task.context
+        ↓
+Crew(Process.sequential)
+        ↓
+Final Synthesizer
+```
+
+Router 不被 CrewAI 隐藏，便于面试官直接检查调度逻辑；真正的 Agent 定义、任务执行、上下文传递和 Crew 协作由 CrewAI 完成。
+
+## 系统架构
 
 ```mermaid
 flowchart TD
     U[用户问题] --> R[Hybrid Router]
     W[万悉官网] --> C[Crawler + Local Cache]
-    C --> KB[Site Documents]
+    C --> K[Site Documents]
     R --> P[Execution Plan]
-    KB --> A1[Website Analyst]
-    P --> A1
-    A1 --> A2[GEO Diagnostic]
-    A1 --> A3[Question Generator]
-    A1 --> A4[Content Strategy]
+
+    P --> CR[CrewAI Runtime]
+    K --> CR
+
+    CR --> A1[Website Analyst Agent]
+    A1 --> A2[GEO Diagnostic Agent]
+    A1 --> A3[Question Generator Agent]
+    A1 --> A4[Content Strategy Agent]
     A2 --> A4
     A3 --> A4
-    A1 --> S[Final Synthesizer]
+
+    A1 --> S[Final Synthesizer Agent]
     A2 --> S
     A3 --> S
     A4 --> S
-    S --> O[结构化结果 + Agent Trace]
+
+    S --> O[Structured Result + Trace]
 ```
 
-Router 不只是返回 Agent 名称，还会生成有依赖关系的执行计划。例如：
+### CrewAI 在项目里具体负责什么
+
+- `Agent`：定义每个 Agent 的 role、goal、backstory、LLM 和 operating prompt。
+- `Task`：把本次用户问题和相关网站证据包装成具体任务。
+- `Task.context`：显式声明上下游依赖，例如 GEO Diagnostic 使用 Website Analyst 的任务结果。
+- `Crew`：把本次 Router 选中的 Agents 和 Tasks 组成一个动态团队。
+- `Process.sequential`：按照 Router 生成的依赖顺序执行。
+- Final Synthesizer 也是 CrewAI Agent，它消费前面所有选中 Task 的输出并生成最终报告。
+
+## 4 个业务 Agent + 1 个整合 Agent
+
+### Website Analyst
+
+负责从官网证据中提取：
+
+- 品牌定位
+- 产品与能力
+- 技术关键词
+- 服务对象
+- 核心表达
+- 信息缺口
+
+所有公司事实都要求带 `source_url` 和 evidence。
+
+### GEO Diagnostic
+
+使用 GEO rubric 检查：
+
+- entity clarity
+- product clarity
+- audience clarity
+- problem-solution clarity
+- question coverage
+- answerability
+- evidence density
+- semantic consistency
+- citation readiness
+
+它评价的是“AI 是否容易理解、抽取和引用”，不会声称能保证排名或被引用。
+
+### Question Generator
+
+基于官网画像模拟目标客户可能在 ChatGPT、DeepSeek、Gemini、Perplexity 中提出的自然问题，并标注：
+
+- persona
+- customer stage
+- intent
+- content needed
+
+### Content Strategy
+
+把官网信息、GEO 诊断和客户问题转成：
+
+- FAQ
+- Blog
+- Product Page
+- Case Study
+- Comparison Page
+
+并给出 P0 / P1 / P2 优先级。
+
+### Final Synthesizer
+
+整合所有本次被调用 Agent 的结果，形成最终业务报告，但禁止引入新的公司事实。
+
+## Router 逻辑
+
+Router 使用 **Rule-first + LLM fallback**。
+
+明确意图优先走确定性规则，例如：
 
 ```text
-用户：请分析官网哪些内容适合被 AI 引用，并给出内容优化建议。
+“官网表达了什么”
+-> website_analyst
 
-website_analyst
-      ↓
-geo_diagnostic
-      ↓
-content_strategy
-      ↓
-final_synthesizer
+“哪些内容适合被 AI 引用”
+-> website_analyst
+-> geo_diagnostic
+
+“用户可能会怎么问 AI”
+-> website_analyst
+-> question_generator
+
+“应该写哪些 FAQ / Blog”
+-> website_analyst
+-> geo_diagnostic
+-> content_strategy
 ```
+
+复杂输入：
+
+```text
+请分析万悉科技官网目前哪些内容适合被 AI 引用，
+哪些内容还需要优化，
+并基于目标客户问题提出内容策略。
+```
+
+会形成：
+
+```text
+website_analyst
+      ├──────────────┐
+      ↓              ↓
+geo_diagnostic   question_generator
+      └──────┬───────┘
+             ↓
+     content_strategy
+             ↓
+     final_synthesizer
+```
+
+如果规则无法稳定判断，Router 再使用同一个模型做一次轻量 intent classification。
+
+## 网站数据层
+
+系统启动后：
+
+```text
+wanxitech.cn
+    ↓
+requests + BeautifulSoup
+    ↓
+去除 script / style / nav / footer
+    ↓
+SiteDocument
+    ↓
+本地 .cache/site_docs.json
+```
+
+后续运行默认复用本地缓存。
+
+为了避免把整个网站全部塞给模型，本项目增加轻量 lexical ranking，根据用户问题挑选相关页面，再构建 Agent context。
+
+这是笔试规模下的工程取舍；生产环境可以把这一层替换为 Elasticsearch / Qdrant / Milvus。
 
 ## 本地安装
 
-推荐 Python 3.11 或 3.12。
+推荐 Python **3.11 或 3.12**。
 
-### 1. 克隆仓库
+### 1. 克隆
 
 ```bash
 git clone https://github.com/chromiii/WANXI-multiagent.git
 cd WANXI-multiagent
 ```
 
-### 2. 创建虚拟环境
+如果当前正在验证 CrewAI 迁移分支：
+
+```bash
+git checkout feature/crewai-orchestration
+```
+
+### 2. 创建环境
 
 Windows PowerShell：
 
@@ -81,79 +224,90 @@ pip install -e .
 macOS / Linux：
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -e .
 ```
 
-也可以使用：
+依赖中已经包含 CrewAI：
 
-```bash
-pip install -r requirements.txt
+```text
+crewai[openai]>=1.15.17,<1.16
 ```
 
-### 3A. 完全本地：Ollama
+## 模型方案 A：Ollama 完全本地
 
-安装 Ollama 后拉取一个中文能力较好的模型，例如：
+安装 Ollama 后拉取模型：
 
 ```bash
 ollama pull qwen2.5:7b
 ```
 
-确保 Ollama 已启动，然后：
+复制配置：
 
-```bash
-cp .env.example .env
-```
-
-Windows 可执行：
+Windows：
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-默认配置已经指向：
+macOS / Linux：
+
+```bash
+cp .env.example .env
+```
+
+默认配置：
 
 ```env
 LLM_PROVIDER=ollama
 LLM_BASE_URL=http://localhost:11434/v1
 LLM_MODEL=qwen2.5:7b
 LLM_API_KEY=ollama
+CREWAI_VERBOSE=false
 ```
 
-机器配置较低时，可以换成更小的 Ollama 模型；如果更关注输出质量，也可以换成更大的模型。
+CrewAI 使用其 OpenAI-compatible LLM 接口连接本机 Ollama，所以 Agent 框架在本机运行，模型也可以完全在本机运行。
 
-### 3B. 使用 DeepSeek API
+如果电脑配置不足，可以换更小的 Ollama 模型；如果输出 JSON 不够稳定，建议录 Demo 时使用更强模型或 DeepSeek API。
 
-编辑 `.env`：
+## 模型方案 B：DeepSeek
+
+修改 `.env`：
 
 ```env
 LLM_PROVIDER=deepseek
 LLM_BASE_URL=https://api.deepseek.com/v1
 LLM_MODEL=deepseek-chat
 LLM_API_KEY=你的_API_Key
+CREWAI_VERBOSE=false
 ```
 
-**不要把真实 Key 提交到 GitHub。** `.env` 已加入 `.gitignore`。
+不要提交真实 API Key；`.env` 已经在 `.gitignore` 中。
 
-## 运行 Web Demo
+## 启动 Web Demo
 
 ```bash
 streamlit run app.py
 ```
 
-浏览器打开 Streamlit 输出的本地地址，默认通常为：
+默认：
 
 ```text
 http://localhost:8501
 ```
 
-第一次分析会抓取官网并写入 `.cache/site_docs.json`；后续默认复用缓存。需要重新抓取时勾选页面中的“强制刷新官网缓存”。
+页面会展示：
 
-## 运行 CLI
+1. Router Decision
+2. 被调用的 Agent
+3. CrewAI Agent / Task Trace
+4. 每个 Agent 的中间 JSON
+5. 最终 GEO 报告
+6. 官网来源 URL
 
-安装为 editable package 后：
+## CLI
 
 ```bash
 wanxi-geo "万悉科技官网目前表达了什么？"
@@ -165,96 +319,111 @@ wanxi-geo "万悉科技官网目前表达了什么？"
 python -m wanxi_geo.cli "请分析万悉科技官网目前哪些内容适合被 AI 引用，并给出 GEO 优化建议。"
 ```
 
-强制重新抓取：
+重新抓取官网：
 
 ```bash
 wanxi-geo "请生成目标客户可能向 AI 提出的问题" --refresh
 ```
 
-## 推荐 Demo Case
+## 推荐录屏 Case
 
-### Case 1：单 Agent
+### Case 1：单业务 Agent
 
 ```text
 万悉科技官网目前表达了什么？
 ```
 
-预期主链路：
+Router：
 
 ```text
-Website Analyst
+website_analyst
+-> final_synthesizer
 ```
 
-### Case 2：双 Agent
+### Case 2：两个业务 Agent
 
 ```text
-请基于万悉官网内容，生成一组目标客户可能向 AI 提出的问题。
+请基于万悉官网内容，生成一组目标客户可能向 AI 提出的的问题。
 ```
 
-预期主链路：
+Router：
 
 ```text
-Website Analyst -> Question Generator
+website_analyst
+-> question_generator
+-> final_synthesizer
 ```
 
-### Case 3：多 Agent 协作
+### Case 3：完整协作
 
 ```text
-请分析万悉科技官网目前哪些内容适合被 AI 引用，哪些内容还需要优化，并基于目标客户问题提出内容策略。
+请分析万悉科技官网目前哪些内容适合被 AI 引用，
+哪些内容还需要优化，
+并基于目标客户问题提出内容策略。
 ```
 
-预期主链路：
+Router：
 
 ```text
-Website Analyst
-   ├─> GEO Diagnostic
-   └─> Question Generator
-          ↓
-     Content Strategy
-          ↓
-      Synthesizer
+website_analyst
+├─ geo_diagnostic
+├─ question_generator
+└─ content_strategy
+      ↓
+final_synthesizer
 ```
 
-## Router 设计
+这个 Case 最适合录屏，因为它能同时展示 Router、多 Agent、Task.context、中间结果和最终整合。
 
-明确问题优先走规则路由，减少额外模型调用和不确定性。例如：
+## 幻觉控制
 
-- “官网表达了什么 / 品牌定位 / 产品能力” -> Website Analyst
-- “哪里需要优化 / 是否适合 AI 引用 / GEO 诊断” -> GEO Diagnostic
-- “用户会怎么问 AI / 目标客户问题” -> Question Generator
-- “应该写什么 / FAQ / Blog / 案例 / 内容策略” -> Content Strategy
+项目使用多层约束：
 
-当规则没有足够信号时，再调用 LLM Router。Router 返回的不只是 Agent 列表，而是带依赖关系的 Execution Plan；Orchestrator 会自动补齐必要的上游 Agent。
-
-## 幻觉控制与证据设计
-
-1. 网站事实只能来自抓取到的 SITE_CONTEXT。
-2. Prompt 明确区分“Observed Fact”和“Recommendation”。
-3. 网站事实要求附带 `source_url` 和 `evidence`。
-4. 证据不足时输出 `insufficient_evidence`，而不是补全事实。
-5. 内容策略可以提出新的内容创意，但必须标记为“建议”，不能把建议写成公司现状。
-6. Agent 之间传递结构化 JSON，减少自然语言链式传播造成的事实漂移。
+1. Website Analyst 只能根据抓取的 SITE_CONTEXT 陈述公司事实。
+2. 公司事实要求附带 source URL 和 evidence。
+3. 缺少证据时返回 `insufficient_evidence` 或 missing information。
+4. GEO Diagnostic 明确区分 Observation 和 Recommendation。
+5. Content Strategy 可以提出新内容，但必须标成未来建议，不能冒充现有事实。
+6. CrewAI Task.context 传递结构化上游输出，减少不同 Agent 重复“猜事实”。
+7. Final Synthesizer 只能整合前序任务结果，禁止增加新的公司事实。
 
 ## 项目目录
 
 ```text
 .
 ├── app.py
+├── README.md
 ├── pyproject.toml
 ├── requirements.txt
 ├── .env.example
-├── src/
-│   └── wanxi_geo/
-│       ├── agents/
-│       ├── prompts/
-│       ├── config.py
-│       ├── context.py
-│       ├── crawler.py
-│       ├── llm.py
-│       ├── models.py
-│       ├── orchestrator.py
-│       ├── router.py
-│       └── cli.py
+│
+├── src/wanxi_geo/
+│   ├── agents/
+│   │   ├── base.py
+│   │   ├── website_analyst.py
+│   │   ├── geo_diagnostic.py
+│   │   ├── question_generator.py
+│   │   ├── content_strategy.py
+│   │   └── synthesizer.py
+│   │
+│   ├── prompts/
+│   │   ├── website_analyst.md
+│   │   ├── geo_diagnostic.md
+│   │   ├── question_generator.md
+│   │   ├── content_strategy.md
+│   │   └── synthesizer.md
+│   │
+│   ├── crawler.py
+│   ├── context.py
+│   ├── crew_plan.py
+│   ├── crewai_runtime.py
+│   ├── router.py
+│   ├── orchestrator.py
+│   ├── llm.py
+│   ├── models.py
+│   ├── config.py
+│   └── cli.py
+│
 ├── tests/
 └── examples/
 ```
@@ -265,19 +434,47 @@ Website Analyst
 pytest -q
 ```
 
-重点测试 Router：同一个系统必须能对不同问题选择不同 Agent，并自动补齐依赖，而不是固定执行全部 Agent。
+测试重点：
 
-## 当前方案不足与后续优化
+- 不同自然语言问题是否路由到不同 Agent；
+- Content Strategy 是否自动补齐必要上游依赖；
+- 复杂查询是否生成四 Agent 执行计划；
+- Router 输出是否能正确转换成 CrewAI Task graph；
+- 爬虫和轻量检索是否正常工作。
 
-这是 3 天笔试场景下的轻量 Demo，并非生产级爬虫或 GEO 评测平台。当前主要限制：
+## 为什么没有把 Router 完全交给 CrewAI
 
-- 对强 JavaScript 渲染页面只做基础 HTML 抓取；生产环境可增加 Playwright fallback。
-- 当前站点检索采用轻量 lexical ranking；网站规模扩大后可接 Elasticsearch / Qdrant / Milvus。
-- GEO 诊断是基于可解释 rubric 的 LLM 评估，并不等价于真实搜索引擎或大模型平台的线上曝光数据。
-- 尚未接入真实 ChatGPT / Gemini / Perplexity 查询结果做 citation monitoring。
-- 连续追问目前保留 UI 会话记录，但没有做长期用户记忆；生产环境应增加 session state / checkpoint store。
-- 可进一步加入并行 Agent、LangGraph 状态图、异步抓取、评测集和 tracing。
+这是有意的工程选择。
 
-## 设计取舍
+本题评分标准明确要求“根据用户输入决定调用哪个 Agent”并展示调用逻辑，因此 Router 使用独立、可测试的策略层；Router 输出 Execution Plan 后，CrewAI 负责真正的 Agent/Task/Crew 协作。
 
-本项目没有为了“多 Agent”强行引入 CrewAI/AutoGen。核心调度逻辑使用普通 Python 显式实现，使 Router 选择、依赖关系、Agent 输入输出和失败路径都可以直接检查，更符合笔试对“真正理解 Agent 调度”的考察目标。
+这样可以在 Demo 中直接解释：
+
+```text
+用户输入
+-> 为什么命中这些规则
+-> 为什么选择这些 Agent
+-> 哪些 Task 依赖哪些 Task
+-> CrewAI 如何执行
+-> 每个 Agent 输出了什么
+```
+
+如果扩展为生产级系统，可以进一步把外层状态和条件分支迁移到 CrewAI Flow。
+
+## 当前不足与后续优化
+
+当前版本是 3 天笔试场景下的工程 Demo，不声称是生产级 GEO 平台。
+
+主要限制：
+
+- JavaScript 重度页面尚未接 Playwright fallback。
+- 网站检索目前是 lexical ranking，而不是 embedding / hybrid search。
+- GEO rubric 是内容可引用性诊断，不等价于真实 ChatGPT / Gemini / Perplexity 曝光数据。
+- 尚未实现线上 citation monitoring。
+- 本地小模型的 JSON 遵循能力可能弱于云端大模型。
+- Crew 使用 sequential process，以保证 Demo 可解释；后续可以引入并行 Task、hierarchical process 或 CrewAI Flow。
+- 连续追问目前只有 Streamlit session history，没有长期 checkpoint / memory。
+
+## 面试时的一句话解释
+
+> 系统先用显式 Hybrid Router 将自然语言问题转换为带依赖关系的 Agent 执行计划，再动态生成 CrewAI Agents 和 Tasks，通过 Task.context 传递上游结果，由 Crew 顺序执行，最后由 Synthesizer Agent 汇总；这样既使用成熟 Multi-Agent 框架，又保留路由逻辑的可解释性和可测试性。

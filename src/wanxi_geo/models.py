@@ -34,9 +34,9 @@ class RoutingPlan(BaseModel):
 
 
 class AgentTrace(BaseModel):
-    agent: AgentName
+    agent: str
     status: Literal["completed", "failed"]
-    duration_ms: int
+    duration_ms: int | None = None
     result: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
 
@@ -47,3 +47,5 @@ class RunResult(BaseModel):
     agent_traces: list[AgentTrace]
     agent_results: dict[str, Any]
     final_answer: str
+    framework: str = "CrewAI"
+    crew_process: str = "sequential"
