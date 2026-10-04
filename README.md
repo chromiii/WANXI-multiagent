@@ -16,7 +16,11 @@
 因此本项目采用：
 
 ```text
-Hybrid Router（显式、可解释）
+LLM Intent Router（语义判断）
+        ↓
+Agent 名称白名单校验
+        ↓
+Deterministic Dependency Resolver
         ↓
 Execution Plan
         ↓
@@ -35,10 +39,12 @@ Router 不被 CrewAI 隐藏，便于面试官直接检查调度逻辑；真正�
 
 ```mermaid
 flowchart TD
-    U[用户问题] --> R[Hybrid Router]
+    U[用户问题] --> R[LLM Intent Router]
     W[万悉官网] --> C[Crawler + Local Cache]
     C --> K[Site Documents]
-    R --> P[Execution Plan]
+    R --> V[Agent 白名单校验]
+    V --> D[Dependency Resolver]
+    D --> P[Execution Plan]
 
     P --> CR[CrewAI Runtime]
     K --> CR
@@ -125,51 +131,52 @@ flowchart TD
 
 ## Router 逻辑
 
-Router 使用 **Rule-first + LLM fallback**。
+Router 使用 **LLM-first semantic routing + deterministic dependency resolver + rule fallback**。
 
-明确意图优先走确定性规则，例如：
+### 1. LLM Intent Router
 
-```text
-“官网表达了什么”
--> website_analyst
+Router 首先让模型只做一件事：理解用户请求需要哪些专业能力，并返回结构化的 `intent / agents / reason`。
 
-“哪些内容适合被 AI 引用”
--> website_analyst
--> geo_diagnostic
+Router Prompt 只包含：
+- 可用 Agent 的职责边界；
+- 最小充分选择原则；
+- 输出字段约束；
+- 禁止自行补依赖、禁止回答业务问题、禁止编造事实。
 
-“用户可能会怎么问 AI”
--> website_analyst
--> question_generator
+**Prompt 中不包含 query → Agent 的示例映射，也不使用示例问题暗示路由答案。**
 
-“应该写哪些 FAQ / Blog”
--> website_analyst
--> geo_diagnostic
--> content_strategy
-```
+### 2. Agent 名称校验
 
-复杂输入：
+模型返回后，代码对 `agents` 做严格白名单校验：
+- 只允许 `website_analyst`
+- `geo_diagnostic`
+- `question_generator`
+- `content_strategy`
 
-```text
-请分析万悉科技官网目前哪些内容适合被 AI 引用，
-哪些内容还需要优化，
-并基于目标客户问题提出内容策略。
-```
+出现未知 Agent、空列表或非法结构时，LLM 路由结果会被拒绝。
 
-会形成：
+### 3. Dependency Resolver
 
-```text
-website_analyst
-      ├──────────────┐
-      ↓              ↓
-geo_diagnostic   question_generator
-      └──────┬───────┘
-             ↓
-     content_strategy
-             ↓
-     final_synthesizer
-```
+依赖关系不交给模型猜，而由代码确定：
+- 任何下游分析都需要 `website_analyst` 提供官网事实基线；
+- `geo_diagnostic` 和 `question_generator` 依赖 `website_analyst`；
+- `content_strategy` 至少依赖 `website_analyst + geo_diagnostic`；
+- 如果本次语义路由同时选择 `question_generator`，其结果也进入 `content_strategy` context。
 
-如果规则无法稳定判断，Router 再使用同一个模型做一次轻量 intent classification。
+因此“用户想做什么”由 LLM 判断，“任务之间如何依赖”由工程代码保证。
+
+### 4. Rule fallback
+
+关键词规则仅作为降级路径存在。当 LLM Router 请求失败、返回非法 JSON、未知 Agent 或其他无效结构时，系统才使用确定性规则尝试恢复执行计划。
+
+若 LLM 与规则都无法可靠判断，则安全回退到 `website_analyst`。
+
+页面中的 `Routing Decision.source` 会明确显示：
+- `llm`
+- `rules_fallback`
+- `safe_fallback`
+
+从而可以在 Demo 中直接看到本次路由到底由哪一层产生。
 
 ## 网站数据层
 
@@ -204,30 +211,24 @@ git clone https://github.com/chromiii/WANXI-multiagent.git
 cd WANXI-multiagent
 ```
 
-如果当前正在验证 CrewAI 迁移分支：
-
-```bash
-git checkout feature/crewai-orchestration
-```
-
 ### 2. 创建环境
 
 Windows PowerShell：
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install -e .
+python -m pip install -e ".[dev]"
 ```
 
 macOS / Linux：
 
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e .
+python -m pip install -e ".[dev]"
 ```
 
 依赖中已经包含 CrewAI：
@@ -270,8 +271,6 @@ CREWAI_VERBOSE=false
 
 CrewAI 使用其 OpenAI-compatible LLM 接口连接本机 Ollama，所以 Agent 框架在本机运行，模型也可以完全在本机运行。
 
-如果电脑配置不足，可以换更小的 Ollama 模型；如果输出 JSON 不够稳定，建议录 Demo 时使用更强模型或 DeepSeek API。
-
 ## 模型方案 B：DeepSeek
 
 修改 `.env`：
@@ -289,7 +288,7 @@ CREWAI_VERBOSE=false
 ## 启动 Web Demo
 
 ```bash
-streamlit run app.py
+python -m streamlit run app.py
 ```
 
 默认：
@@ -333,7 +332,7 @@ wanxi-geo "请生成目标客户可能向 AI 提出的问题" --refresh
 万悉科技官网目前表达了什么？
 ```
 
-Router：
+预期语义路由只选择：
 
 ```text
 website_analyst
@@ -343,10 +342,10 @@ website_analyst
 ### Case 2：两个业务 Agent
 
 ```text
-请基于万悉官网内容，生成一组目标客户可能向 AI 提出的的问题。
+请基于万悉官网内容，生成一组目标客户可能向 AI 提出的问题。
 ```
 
-Router：
+预期执行计划：
 
 ```text
 website_analyst
@@ -362,7 +361,7 @@ website_analyst
 并基于目标客户问题提出内容策略。
 ```
 
-Router：
+预期执行计划：
 
 ```text
 website_analyst
@@ -373,7 +372,7 @@ website_analyst
 final_synthesizer
 ```
 
-这个 Case 最适合录屏，因为它能同时展示 Router、多 Agent、Task.context、中间结果和最终整合。
+这个 Case 最适合录屏，因为它能同时展示语义 Router、依赖解析、多 Agent、Task.context、中间结果和最终整合。
 
 ## 幻觉控制
 
@@ -431,30 +430,32 @@ final_synthesizer
 ## 测试
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
 测试重点：
 
-- 不同自然语言问题是否路由到不同 Agent；
-- Content Strategy 是否自动补齐必要上游依赖；
-- 复杂查询是否生成四 Agent 执行计划；
+- 配置 LLM 时，语义 Router 是否优先于规则执行；
+- LLM Router 返回的 Agent 是否通过白名单校验；
+- LLM 不可用或返回非法结果时是否正确进入规则降级；
+- Content Strategy 是否由代码自动补齐必要上游依赖；
 - Router 输出是否能正确转换成 CrewAI Task graph；
-- 爬虫和轻量检索是否正常工作。
+- 爬虫和轻量检索是否正常工作；
+- Router Prompt 是否不包含 query → Agent 示例映射。
 
 ## 为什么没有把 Router 完全交给 CrewAI
 
 这是有意的工程选择。
 
-本题评分标准明确要求“根据用户输入决定调用哪个 Agent”并展示调用逻辑，因此 Router 使用独立、可测试的策略层；Router 输出 Execution Plan 后，CrewAI 负责真正的 Agent/Task/Crew 协作。
+本题评分标准明确要求“根据用户输入决定调用哪个 Agent”并展示调用逻辑，因此 Router 使用独立、可测试的语义策略层；Router 输出 Execution Plan 后，CrewAI 负责真正的 Agent/Task/Crew 协作。
 
 这样可以在 Demo 中直接解释：
 
 ```text
 用户输入
--> 为什么命中这些规则
--> 为什么选择这些 Agent
--> 哪些 Task 依赖哪些 Task
+-> LLM 语义理解
+-> Agent 白名单校验
+-> 确定性依赖补全
 -> CrewAI 如何执行
 -> 每个 Agent 输出了什么
 ```
@@ -471,10 +472,10 @@ pytest -q
 - 网站检索目前是 lexical ranking，而不是 embedding / hybrid search。
 - GEO rubric 是内容可引用性诊断，不等价于真实 ChatGPT / Gemini / Perplexity 曝光数据。
 - 尚未实现线上 citation monitoring。
-- 本地小模型的 JSON 遵循能力可能弱于云端大模型。
+- Router 与业务 Agents 共用当前配置的 LLM；生产环境可为 Router 使用更小、更低温度的独立分类模型。
 - Crew 使用 sequential process，以保证 Demo 可解释；后续可以引入并行 Task、hierarchical process 或 CrewAI Flow。
 - 连续追问目前只有 Streamlit session history，没有长期 checkpoint / memory。
 
 ## 面试时的一句话解释
 
-> 系统先用显式 Hybrid Router 将自然语言问题转换为带依赖关系的 Agent 执行计划，再动态生成 CrewAI Agents 和 Tasks，通过 Task.context 传递上游结果，由 Crew 顺序执行，最后由 Synthesizer Agent 汇总；这样既使用成熟 Multi-Agent 框架，又保留路由逻辑的可解释性和可测试性。
+> 系统先由独立的 LLM Intent Router 进行语义意图识别，只输出最小必要的 specialist agents；代码随后对白名单和结构进行校验，并以 deterministic dependency resolver 补齐任务依赖；CrewAI 再动态创建 Agents、Tasks 和 Task.context 执行多 Agent 协作，最后由 Synthesizer 汇总。规则只用于 LLM 路由失败时的降级，不参与正常语义判断。

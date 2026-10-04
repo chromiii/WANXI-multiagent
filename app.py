@@ -11,7 +11,7 @@ st.set_page_config(page_title="WANXI GEO Agent Studio", page_icon="🧭", layout
 
 settings = get_settings()
 st.title("WANXI GEO Agent Studio")
-st.caption("Project 2 · CrewAI · Hybrid Router · GEO website analysis · local deploy")
+st.caption("Project 2 · CrewAI · LLM-first Hybrid Router · GEO website analysis · local deploy")
 
 with st.sidebar:
     st.subheader("运行配置")
@@ -65,7 +65,7 @@ if st.button("开始分析", type="primary", use_container_width=True):
             )
             st.write(f"已加载 {len(documents)} 个页面。")
 
-            st.write("2/3 Hybrid Router 规划 Agent 调用链")
+            st.write("2/3 LLM Intent Router 语义规划 + 代码依赖解析")
             orchestrator = AgentOrchestrator(settings)
 
             st.write("3/3 CrewAI 创建 Agent / Task / Crew 并执行")
