@@ -82,13 +82,13 @@ class OpenAICompatibleClient:
         except Exception as exc:
             raise LLMError(f"Unexpected LLM response: {data}") from exc
 
-    def chat_json(self, system_prompt: str, user_prompt: str) -> dict[str, Any]:
+    def chat_json(\n        self,\n        system_prompt: str,\n        user_prompt: str,\n        *,\n        temperature: float | None = None,\n    ) -> dict[str, Any]:
         strict_system = (
             system_prompt.rstrip()
             + "\n\nIMPORTANT: Return exactly one valid JSON object. "
             "Do not wrap it in Markdown and do not add commentary outside JSON."
         )
-        raw = self.chat(strict_system, user_prompt)
+        raw = self.chat(strict_system, user_prompt, temperature=temperature)
         return extract_json_object(raw)
 
     @staticmethod
