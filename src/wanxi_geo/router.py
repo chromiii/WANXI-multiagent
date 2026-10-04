@@ -67,6 +67,7 @@ class HybridRouter:
         data = self.llm.chat_json(
             self._router_prompt(),
             f"USER_QUESTION:\n{question}",
+            temperature=0.0,
         )
         selected, intent, reason = self._validate_llm_decision(data)
         selected = self._with_dependencies(selected)
@@ -122,9 +123,8 @@ class HybridRouter:
 
         selected: list[AgentName] = []
         for value in raw_agents:
-            agent = value
-            if agent not in selected:
-                selected.append(agent)
+            if value not in selected:
+                selected.append(value)
 
         intent = data.get("intent")
         reason = data.get("reason")
