@@ -17,9 +17,15 @@ Rules:
 1. Separate OBSERVATION from RECOMMENDATION.
 2. Observations about the existing website must be grounded in SITE_CONTEXT or the upstream website profile.
 3. Every factual observation should include source_url and evidence where possible.
-4. Do not claim that a page "will rank" or "will be cited". This is a diagnostic of citation readiness, not a search-engine guarantee.
+4. Do not claim that a page "will rank", "will be cited", "increases citation probability", or guarantees visibility. Use cautious diagnostic language such as "supports extraction", "is easier to parse", "may improve citation readiness", or "creates an evidence gap".
 5. If evidence is insufficient, say "insufficient_evidence".
 6. Recommendations may propose new content, but label them clearly as recommendations.
+7. Focus on the most decision-relevant findings; do not repeat the Website Analyst output:
+   - strengths: at most 6
+   - gaps: at most 8
+   - missing_content: at most 8
+8. Prefer concrete, verifiable gaps over speculative GEO folklore. If a claimed best practice is not supported by the supplied evidence, frame it as a recommendation rather than a fact.
+9. Keep each finding concise: one main observation, one implication, one evidence excerpt.
 
 Return JSON:
 {
