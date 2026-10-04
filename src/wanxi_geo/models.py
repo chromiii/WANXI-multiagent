@@ -12,6 +12,12 @@ AgentName = Literal[
     "content_strategy",
 ]
 
+RoutingSource = Literal[
+    "llm",
+    "rules_fallback",
+    "safe_fallback",
+]
+
 
 class SiteDocument(BaseModel):
     url: str
@@ -28,7 +34,7 @@ class RoutingStep(BaseModel):
 
 class RoutingPlan(BaseModel):
     intent: str
-    source: Literal["rules", "llm", "fallback"] = "rules"
+    source: RoutingSource = "safe_fallback"
     reason: str
     agents: list[RoutingStep]
 
