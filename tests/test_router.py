@@ -12,11 +12,13 @@ class StubLLM:
         self.calls = 0
         self.system_prompt = None
         self.user_prompt = None
+        self.temperature = None
 
-    def chat_json(self, system_prompt, user_prompt):
+    def chat_json(self, system_prompt, user_prompt, *, temperature=None):
         self.calls += 1
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
+        self.temperature = temperature
         if self.error is not None:
             raise self.error
         return self.response
@@ -36,6 +38,7 @@ def test_llm_is_primary_router_for_website_understanding():
     assert llm.calls == 1
     assert names(plan) == ["website_analyst"]
     assert plan.source == "llm"
+    assert llm.temperature == 0.0
 
 
 def test_llm_semantic_router_can_select_multiple_specialists():
