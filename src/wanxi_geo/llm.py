@@ -16,8 +16,8 @@ class LLMError(RuntimeError):
 def extract_json_object(raw: str) -> dict[str, Any]:
     """Best-effort JSON extraction for local models that may add code fences."""
     cleaned = raw.strip()
-    cleaned = re.sub(r"^\`\`\`(?:json)?\s*", "", cleaned, flags=re.I)
-    cleaned = re.sub(r"\s*\`\`\`$", "", cleaned)
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
 
     try:
         value = json.loads(cleaned)
