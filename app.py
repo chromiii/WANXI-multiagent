@@ -181,7 +181,9 @@ if st.button("开始分析", type="primary", use_container_width=True):
                 if doc.url in seen_urls:
                     continue
                 seen_urls.add(doc.url)
-                st.markdown(f"- [{source_label(doc.url, doc.title)}]({doc.url})")
+                st.markdown(
+                    f"- [{source_label(doc.url, doc.title, doc.headings)}]({doc.url})"
+                )
 
         with tab5:
             st.subheader("Routing JSON")
