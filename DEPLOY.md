@@ -159,12 +159,23 @@ Streamlit Cloud 的运行实例不应被视为永久磁盘。
 
 如果部署失败：
 
+### `ModuleNotFoundError: wanxi_geo`
+
+确认根目录的 `requirements.txt` 包含：
+
+```text
+-e .
+```
+
+本项目使用 `src/` layout，Cloud 必须先把当前仓库安装成 Python package，`app.py` 才能导入 `wanxi_geo`。
+
 ### 依赖安装失败
 
-确认根目录存在：
+确认根目录同时存在：
 
 ```text
 requirements.txt
+pyproject.toml
 ```
 
 ### DeepSeek 调用失败
