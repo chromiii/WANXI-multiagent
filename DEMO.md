@@ -30,10 +30,11 @@ python -m streamlit run app.py
 
 - LLM Provider / Model
 - 目标官网
-- Router / Crew Trace
-- 中间结果
-- 最终报告
-- 网站来源
+- 顶部四个运行指标：Routing Source / Selected Specialists / Website Pages / Crew Process
+- “执行概览”里的 Router 决策与 Execution Plan
+- “Agent 结果”里的业务摘要
+- “最终报告”
+- “Raw Debug”中仍可检查完整 JSON / Task Trace
 
 ---
 
@@ -57,7 +58,7 @@ agents:
 
 > 这个问题只要求理解官网当前表达，因此 LLM Router 只选择 website_analyst。Dependency Resolver 不需要补其他业务 Agent。
 
-展开 `website_analyst`，简单指出：
+切到“Agent 结果”，先看默认业务摘要，再按需展开 `website_analyst` 的完整 JSON，简单指出：
 
 - brand_positioning
 - products_and_capabilities
