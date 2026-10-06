@@ -2,18 +2,6 @@
 
 ## Project 2：WANXI Multi-Agent GEO Studio
 
-### 推荐评审入口
-
-优先提供 **Live Web Demo**，让评审直接在浏览器测试 Router、Agent 调度、中间结果和最终报告；GitHub 用于检查代码和架构；录屏视频作为网络异常时的备用材料。
-
-```text
-1. Live Web Demo: https://<your-app-name>.streamlit.app
-2. GitHub: https://github.com/chromiii/WANXI-multiagent
-3. Demo Video: optional backup
-```
-
-部署步骤见 `DEPLOY.md`.
-
 GitHub Repository:
 
 ```text
