@@ -225,7 +225,14 @@ SiteDocument
 本地 .cache/site_docs.json
 ```
 
-后续运行默认复用本地缓存。
+后续运行默认复用本地缓存。缓存会记录目标 URL 与 `max_pages`；修改抓取页数后会重新抓取，避免误复用旧页数的缓存。
+
+Crawler 会沿首页发现的同域链接继续抓取子页面，并做三层去重：
+- URL 规范化，移除 fragment 与常见 tracking 参数；
+- URL queue / seen 去重，避免重复请求相同规范化地址；
+- 正文内容指纹去重，避免不同路由返回相同页面内容时重复计入证据页。
+
+页面中的 **Website Pages** 因此表示“实际保留的唯一正文页面数”，不是请求次数。网站来源会同时显示页面标题和 URL path，便于区分标题相同的首页、About、Blog 和具体文章。
 
 为了避免把整个网站全部塞给模型，本项目增加轻量 lexical ranking，根据用户问题挑选相关页面，再构建 Agent context。
 

@@ -1,5 +1,9 @@
 from wanxi_geo.models import RoutingPlan, RoutingStep
-from wanxi_geo.presentation import execution_plan_lines, summarize_agent_result
+from wanxi_geo.presentation import (
+    execution_plan_lines,
+    source_label,
+    summarize_agent_result,
+)
 
 
 def test_execution_plan_is_human_readable():
@@ -67,3 +71,15 @@ def test_strategy_summary_keeps_priority_and_topic():
     assert summarize_agent_result("content_strategy", result) == [
         "P0 · Case Study：量化案例"
     ]
+
+
+
+def test_source_label_distinguishes_same_title_pages():
+    assert (
+        source_label("https://example.com/about", "Same Title")
+        == "Same Title · /about"
+    )
+    assert (
+        source_label("https://example.com/", "Same Title")
+        == "Same Title · 首页"
+    )
