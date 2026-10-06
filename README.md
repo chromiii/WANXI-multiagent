@@ -6,7 +6,6 @@
 
 ## 快速入口
 
-- [Demo 录屏脚本](DEMO.md)
 - [提交说明 / 项目亮点](SUBMISSION.md)
 - 启动：`python -m streamlit run app.py`
 - 测试：`python -m pytest -q`
@@ -343,7 +342,7 @@ http://localhost:8501
 4. **网站来源**：本次加载的官网证据页面
 5. **Raw Debug**：完整 Routing JSON、CrewAI Agent / Task Trace 与结构化中间结果
 
-这样录屏时默认看到的是 Agent workflow 和业务结果，而不是大段调试 JSON；同时评审仍可展开检查完整中间数据。
+默认页面优先展示 Agent workflow 和业务结果，同时保留 Raw Debug 供评审检查完整中间数据。
 
 ## CLI
 
@@ -363,7 +362,7 @@ python -m wanxi_geo.cli "请分析万悉科技官网目前哪些内容适合被 
 wanxi-geo "请生成目标客户可能向 AI 提出的问题" --refresh
 ```
 
-## 推荐录屏 Case
+## 示例 Case
 
 ### Case 1：单业务 Agent
 
@@ -411,7 +410,7 @@ website_analyst
 final_synthesizer
 ```
 
-这个 Case 最适合录屏，因为它能同时展示语义 Router、依赖解析、多 Agent、Task.context、中间结果和最终整合。
+这个 Case 用于验证语义 Router、依赖解析、多 Agent、Task.context、中间结果和最终整合。
 
 ## 幻觉控制
 
@@ -432,7 +431,6 @@ final_synthesizer
 .
 ├── app.py
 ├── README.md
-├── DEMO.md
 ├── SUBMISSION.md
 ├── pyproject.toml
 ├── requirements.txt
