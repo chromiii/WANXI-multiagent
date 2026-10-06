@@ -4,6 +4,7 @@ import streamlit as st
 
 from wanxi_geo.config import get_settings
 from wanxi_geo.crawler import WebsiteCrawler
+from wanxi_geo.export import build_sample_markdown, build_sample_pdf
 from wanxi_geo.orchestrator import AgentOrchestrator
 from wanxi_geo.presentation import (
     AGENT_PURPOSES,
@@ -172,6 +173,29 @@ if st.button("开始分析", type="primary", use_container_width=True):
             st.caption(
                 "最终报告的章节由 Stage-aware Final Prompt Builder 根据本次实际执行阶段生成。"
             )
+
+            export_col1, export_col2 = st.columns(2)
+            markdown_output = build_sample_markdown(result, documents)
+            pdf_output = build_sample_pdf(result, documents)
+
+            with export_col1:
+                st.download_button(
+                    "下载 Markdown 示例",
+                    data=markdown_output,
+                    file_name="WANXI_Project2_sample_output.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                )
+
+            with export_col2:
+                st.download_button(
+                    "下载 PDF 示例",
+                    data=pdf_output,
+                    file_name="WANXI_Project2_sample_output.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+
             st.markdown(result.final_answer)
 
         with tab4:

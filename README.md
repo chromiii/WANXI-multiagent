@@ -338,11 +338,22 @@ http://localhost:8501
 
 1. **执行概览**：Routing Source、Intent、选择原因、Selected Specialists 与依赖关系
 2. **Agent 结果**：每个 Specialist 的关键业务摘要，完整 JSON 可按需展开
-3. **最终报告**：Stage-aware Final Prompt Builder 约束后的整合结果
+3. **最终报告**：Stage-aware Final Prompt Builder 约束后的整合结果，并可一键导出 Markdown / PDF 示例
 4. **网站来源**：本次加载的官网证据页面
 5. **Raw Debug**：完整 Routing JSON、CrewAI Agent / Task Trace 与结构化中间结果
 
 默认页面优先展示 Agent workflow 和业务结果，同时保留 Raw Debug 供评审检查完整中间数据。
+
+### 示例输出导出
+
+每次分析完成后，在 **最终报告** 页签可以直接下载：
+
+```text
+WANXI_Project2_sample_output.md
+WANXI_Project2_sample_output.pdf
+```
+
+导出的 Markdown 包含 Routing Decision、Agent 调用链、各 Specialist 的结构化中间结果、Final Report 与官网来源；PDF 使用更适合评审阅读的精简版式，保留输入、路由、执行计划、Agent 关键结果、最终报告和来源，不包含 Raw Debug 大段 JSON。
 
 ## CLI
 
