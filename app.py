@@ -9,6 +9,7 @@ from wanxi_geo.presentation import (
     AGENT_PURPOSES,
     agent_label,
     execution_plan_lines,
+    source_label,
     summarize_agent_result,
 )
 
@@ -180,7 +181,7 @@ if st.button("开始分析", type="primary", use_container_width=True):
                 if doc.url in seen_urls:
                     continue
                 seen_urls.add(doc.url)
-                st.markdown(f"- [{doc.title or doc.url}]({doc.url})")
+                st.markdown(f"- [{source_label(doc.url, doc.title)}]({doc.url})")
 
         with tab5:
             st.subheader("Routing JSON")
