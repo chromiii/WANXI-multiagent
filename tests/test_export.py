@@ -50,7 +50,7 @@ def test_markdown_export_contains_required_sections():
     assert "Intermediate Agent Results" in text
     assert "Final Report" in text
     assert "Website Sources" in text
-    assert "website_analyst" in text
+    assert "Website Analyst" in text
 
 
 def test_pdf_export_returns_pdf_bytes():
