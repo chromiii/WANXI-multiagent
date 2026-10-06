@@ -74,12 +74,26 @@ def test_strategy_summary_keeps_priority_and_topic():
 
 
 
-def test_source_label_distinguishes_same_title_pages():
+def test_source_label_prefers_heading_and_decodes_path():
     assert (
-        source_label("https://example.com/about", "Same Title")
+        source_label(
+            "https://example.com/%E5%85%B3%E4%BA%8E",
+            "Same Title",
+            ["关于我们"],
+        )
+        == "关于我们 · /关于"
+    )
+
+
+def test_source_label_falls_back_to_title_for_non_home_page():
+    assert (
+        source_label("https://example.com/about", "Same Title", [])
         == "Same Title · /about"
     )
+
+
+def test_source_label_uses_readable_home_label():
     assert (
-        source_label("https://example.com/", "Same Title")
-        == "Same Title · 首页"
+        source_label("https://example.com/", "Same Title", [])
+        == "万悉科技官网 · 首页"
     )
