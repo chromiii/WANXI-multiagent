@@ -2,7 +2,28 @@
 
 > 万悉科技 AI 高级工程师笔试 Project 2：基于万悉官网的 GEO 智能体协作系统。
 
-这是一个可本地部署的 **CrewAI Multi-Agent GEO Demo**。系统读取万悉科技官网内容，先由 Hybrid Router 判断用户意图并生成执行计划，再动态创建 CrewAI Agents / Tasks / Crew，执行官网分析、GEO 诊断、用户问题生成、内容策略和最终整合。
+这是一个可本地部署的 **CrewAI Multi-Agent GEO Demo**。系统读取万悉科技官网内容，由 **LLM-first Intent Router** 做语义任务识别，代码完成 Agent 白名单校验与依赖解析，再动态创建 CrewAI Agents / Tasks / Crew；最终由 **Stage-aware Final Prompt Builder** 根据实际执行阶段约束报告结构。
+
+## 快速入口
+
+- [Demo 录屏脚本](DEMO.md)
+- [提交说明 / 项目亮点](SUBMISSION.md)
+- 启动：`python -m streamlit run app.py`
+- 测试：`python -m pytest -q`
+
+### 核心链路
+
+```text
+User Query
+→ LLM Intent Router
+→ Whitelist Validation
+→ Dependency Resolver
+→ CrewAI Specialists
+→ Stage-aware Final Prompt Builder
+→ Final Synthesizer
+```
+
+**核心原则：语义判断交给 LLM，确定性依赖交给代码，最终层只整合本次真实执行过的 specialist 输出。**
 
 ## 为什么这样设计
 
@@ -403,6 +424,8 @@ final_synthesizer
 .
 ├── app.py
 ├── README.md
+├── DEMO.md
+├── SUBMISSION.md
 ├── pyproject.toml
 ├── requirements.txt
 ├── .env.example
