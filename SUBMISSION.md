@@ -2,6 +2,17 @@
 
 ## Project 2：WANXI Multi-Agent GEO Studio
 
+### 推荐评审入口
+
+本项目以 **GitHub + 录制 Demo** 作为正式交付方式：
+
+```text
+1. Demo Video：展示安装、框架、动态路由、Agent 协作与最终报告
+2. GitHub Repository：检查完整代码、Prompt、测试与 README
+```
+
+推荐视频控制在 **5–8 分钟**，完整录屏顺序与口播见 `DEMO.md`。
+
 GitHub Repository:
 
 ```text
