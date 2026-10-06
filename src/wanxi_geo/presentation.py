@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from .models import RoutingPlan
 
@@ -142,3 +143,14 @@ def _strategy_summary(result: dict[str, Any]) -> list[str]:
             highlights.append(f"{label}：{topic}" if label else topic)
 
     return highlights
+
+
+
+def source_label(url: str, title: str = "") -> str:
+    parsed = urlparse(url)
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    location = "首页" if path == "/" else path
+    base = title.strip() if title and title.strip() else (parsed.netloc or url)
+    return f"{base} · {location}"
