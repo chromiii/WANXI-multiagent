@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import deque
 from pathlib import Path
-from urllib.parse import urldefrag, urljoin, urlparse, urlunparse
+from urllib.parse import (
+    parse_qsl,
+    urldefrag,
+    urlencode,
+    urljoin,
+    urlparse,
+    urlunparse,
+)
 
 import requests
 from bs4 import BeautifulSoup
@@ -12,10 +20,19 @@ from bs4 import BeautifulSoup
 from .models import SiteDocument
 
 
+CACHE_VERSION = 2
+
 ASSET_SUFFIXES = (
     ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
     ".pdf", ".zip", ".rar", ".7z", ".mp4", ".mp3", ".css", ".js",
 )
+
+TRACKING_QUERY_KEYS = {
+    "fbclid",
+    "gclid",
+    "mc_cid",
+    "mc_eid",
+}
 
 
 class WebsiteCrawler:
@@ -38,22 +55,34 @@ class WebsiteCrawler:
         refresh: bool = False,
     ) -> list[SiteDocument]:
         cache_path = Path(cache_path)
+        normalized_start = self._normalize_url(start_url)
+
         if not refresh and cache_path.exists():
             try:
                 payload = json.loads(cache_path.read_text(encoding="utf-8"))
-                if payload.get("start_url") == start_url:
-                    docs = [SiteDocument.model_validate(x) for x in payload.get("documents", [])]
+                cache_matches = (
+                    payload.get("cache_version") == CACHE_VERSION
+                    and payload.get("start_url") == normalized_start
+                    and payload.get("max_pages") == max_pages
+                )
+                if cache_matches:
+                    docs = [
+                        SiteDocument.model_validate(x)
+                        for x in payload.get("documents", [])
+                    ]
                     if docs:
                         return docs
             except (json.JSONDecodeError, OSError, ValueError):
                 pass
 
-        docs = self.crawl(start_url, max_pages=max_pages)
+        docs = self.crawl(normalized_start, max_pages=max_pages)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
             json.dumps(
                 {
-                    "start_url": start_url,
+                    "cache_version": CACHE_VERSION,
+                    "start_url": normalized_start,
+                    "max_pages": max_pages,
                     "documents": [d.model_dump() for d in docs],
                 },
                 ensure_ascii=False,
@@ -67,11 +96,14 @@ class WebsiteCrawler:
         start = self._normalize_url(start_url)
         allowed_host = self._canonical_host(urlparse(start).netloc)
         queue: deque[str] = deque([start])
+        queued: set[str] = {start}
         seen: set[str] = set()
+        content_seen: set[str] = set()
         docs: list[SiteDocument] = []
 
         while queue and len(docs) < max_pages:
             url = queue.popleft()
+            queued.discard(url)
             if url in seen:
                 continue
             seen.add(url)
@@ -86,19 +118,31 @@ class WebsiteCrawler:
             if "text/html" not in content_type.lower():
                 continue
 
-            doc = self.parse_html(url, response.text)
-            if len(doc.text) < 120:
-                continue
-            docs.append(doc)
+            final_url = self._normalize_url(getattr(response, "url", url) or url)
+            seen.add(final_url)
+            doc = self.parse_html(final_url, response.text)
 
+            # Discover same-domain links even if this page later proves to be a duplicate.
+            # This preserves crawl coverage for sites that expose several routes with
+            # nearly identical landing-page content.
             for link in doc.links:
                 parsed = urlparse(link)
                 if self._canonical_host(parsed.netloc) != allowed_host:
                     continue
                 if parsed.path.lower().endswith(ASSET_SUFFIXES):
                     continue
-                if link not in seen:
+                if link not in seen and link not in queued:
                     queue.append(link)
+                    queued.add(link)
+
+            if len(doc.text) < 120:
+                continue
+
+            fingerprint = self._content_fingerprint(doc.text)
+            if fingerprint in content_seen:
+                continue
+            content_seen.add(fingerprint)
+            docs.append(doc)
 
         if not docs:
             raise RuntimeError(
@@ -142,6 +186,11 @@ class WebsiteCrawler:
         return "\n".join(lines)
 
     @staticmethod
+    def _content_fingerprint(text: str) -> str:
+        normalized = re.sub(r"\s+", " ", text).strip().encode("utf-8")
+        return hashlib.sha256(normalized).hexdigest()
+
+    @staticmethod
     def _canonical_host(host: str) -> str:
         host = host.lower().split(":", 1)[0]
         return host[4:] if host.startswith("www.") else host
@@ -154,4 +203,13 @@ class WebsiteCrawler:
         path = parsed.path or "/"
         if path != "/":
             path = path.rstrip("/")
-        return urlunparse((scheme, parsed.netloc, path, "", parsed.query, ""))
+
+        query_items = []
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+            lowered = key.lower()
+            if lowered.startswith("utm_") or lowered in TRACKING_QUERY_KEYS:
+                continue
+            query_items.append((key, value))
+        query = urlencode(query_items, doseq=True)
+
+        return urlunparse((scheme, parsed.netloc, path, "", query, ""))
