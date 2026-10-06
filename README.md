@@ -328,14 +328,15 @@ python -m streamlit run app.py
 http://localhost:8501
 ```
 
-页面会展示：
+页面按“业务演示优先、调试信息可追溯”的方式展示：
 
-1. Router Decision
-2. 被调用的 Agent
-3. CrewAI Agent / Task Trace
-4. 每个 Agent 的中间 JSON
-5. 最终 GEO 报告
-6. 官网来源 URL
+1. **执行概览**：Routing Source、Intent、选择原因、Selected Specialists 与依赖关系
+2. **Agent 结果**：每个 Specialist 的关键业务摘要，完整 JSON 可按需展开
+3. **最终报告**：Stage-aware Final Prompt Builder 约束后的整合结果
+4. **网站来源**：本次加载的官网证据页面
+5. **Raw Debug**：完整 Routing JSON、CrewAI Agent / Task Trace 与结构化中间结果
+
+这样录屏时默认看到的是 Agent workflow 和业务结果，而不是大段调试 JSON；同时评审仍可展开检查完整中间数据。
 
 ## CLI
 
@@ -475,6 +476,7 @@ python -m pytest -q
 - Content Strategy 是否由代码自动补齐必要上游依赖；
 - Router 输出是否能正确转换成 CrewAI Task graph；
 - 爬虫和轻量检索是否正常工作；
+- Demo 展示 helper 是否能稳定提取各 Agent 的关键摘要；
 - Router Prompt 是否不包含 query → Agent 示例映射；
 - Final Prompt 是否只包含本次已执行 specialist 对应的章节；
 - 未选择的 GEO / 问题生成 / 内容策略能力是否被明确禁止。
