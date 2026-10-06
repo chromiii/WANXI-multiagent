@@ -1,10 +1,19 @@
-# Demo 录屏脚本
+# Project 2 Demo 录屏脚本
 
-这份脚本用于万悉科技 AI 高级工程师笔试 Project 2 的录屏演示。目标不是逐行解释代码，而是让评审快速看到：**系统会根据用户意图动态选择 Agent，Agent 之间存在真实依赖，最终报告只整合本次实际执行的阶段。**
+这份脚本用于万悉科技 AI 高级工程师笔试 Project 2。建议成片控制在 **5–8 分钟**。目标不是逐行讲代码，而是让评审清楚看到四件事：
 
-## 录屏前准备
+1. 项目可以本地安装与运行；
+2. 系统有明确的 Multi-Agent 框架与职责边界；
+3. Agent 不是固定串行调用，而是根据用户请求动态路由并真实传递上下游结果；
+4. 最终能输出一个有证据、有诊断、有客户问题、有优先级策略的 GEO 业务结果。
 
-Windows PowerShell：
+录屏时不要展示 `.env` 或任何真实 API Key。
+
+---
+
+## 0. 录屏前准备
+
+建议先完成一次本地验证：
 
 ```powershell
 cd C:\Users\29546\Documents\作业\WANXI-multiagent
@@ -14,31 +23,145 @@ python -m pytest -q
 python -m streamlit run app.py
 ```
 
-录屏时不要打开或展示 `.env`，避免泄露 API Key。
-
-建议使用已缓存官网数据，除非需要专门展示抓取过程；这样 Demo 更稳定，也更突出 Multi-Agent 调度本身。
+建议录屏时使用已抓取好的官网缓存，避免网络波动。只有在介绍 crawler 时说明系统支持“强制刷新官网缓存”即可，不需要现场重新抓全站。
 
 ---
 
-## 开场
+# 1. 开场：项目目标与框架（约 45–60 秒）
 
-可以直接这样讲：
+先打开项目 README 或 Streamlit 首页。
 
-> 这是我针对万悉科技 Project 2 实现的 CrewAI Multi-Agent GEO Demo。系统不是把几个 Prompt 顺序执行，而是先用 LLM Intent Router 理解用户请求，只选择最小必要的 specialist agents；代码随后做 Agent 白名单校验和依赖补全，再交给 CrewAI 执行。最终报告由 Stage-aware Final Prompt Builder 根据实际执行阶段动态生成，因此未调用的 Agent 不会被 Final Synthesizer 越权替代。
+口播：
 
-随后在页面上指出：
+> 这是我针对万悉科技 Project 2 实现的 WANXI Multi-Agent GEO Studio。项目使用 Python 和 CrewAI 构建，Streamlit 提供本地 Demo 界面，DeepSeek 通过 OpenAI-compatible API 作为当前 LLM 后端。网站数据通过 requests 和 BeautifulSoup 抓取，经过 URL 规范化、正文去重和本地缓存后，再交给不同 Specialist Agents 分析。
 
-- LLM Provider / Model
-- 目标官网
-- 顶部四个运行指标：Routing Source / Selected Specialists / Website Pages / Crew Process
-- “执行概览”里的 Router 决策与 Execution Plan
-- “Agent 结果”里的业务摘要
-- “最终报告”
-- “Raw Debug”中仍可检查完整 JSON / Task Trace
+然后展示主架构：
+
+```text
+User Query
+    ↓
+LLM Intent Router
+    ↓
+Agent Whitelist Validation
+    ↓
+Deterministic Dependency Resolver
+    ↓
+CrewAI Agents / Tasks / Task.context
+    ↓
+Stage-aware Final Prompt Builder
+    ↓
+Final Synthesizer
+```
+
+口播：
+
+> 这里我把“语义判断”和“工程依赖”拆开。LLM Router 只负责理解用户需要哪些专业能力；依赖关系不让模型猜，而由代码确定。CrewAI 负责实际 Agent、Task 和 Task.context 的执行。最后再由 Stage-aware Final Prompt Builder 限制最终报告只能包含本次真实执行过的专业阶段。
 
 ---
 
-## Case 1：单 Agent 路由
+# 2. 安装与启动（约 45–60 秒）
+
+切到 README 的安装部分或 PowerShell。
+
+说明环境：
+
+```text
+Python 3.11 / 3.12
+CrewAI
+Streamlit
+Pydantic
+requests + BeautifulSoup
+DeepSeek / Ollama (OpenAI-compatible)
+```
+
+展示安装命令：
+
+```powershell
+git clone https://github.com/chromiii/WANXI-multiagent.git
+cd WANXI-multiagent
+
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+
+Copy-Item .env.example .env
+```
+
+解释模型配置，但不要打开真实 `.env`：
+
+> 项目默认支持 OpenAI-compatible endpoint。可以完全本地连接 Ollama，也可以像本次 Demo 一样配置 DeepSeek。API Key 只保存在本地 .env，不进入 GitHub，也不从 Streamlit 页面输入，避免录屏泄露。
+
+再展示测试与启动：
+
+```powershell
+python -m pytest -q
+python -m streamlit run app.py
+```
+
+口播：
+
+> 启动后 Streamlit 页面会显示当前框架、模型、官网地址和最大抓取页面数。
+
+---
+
+# 3. 功能说明（约 60–90 秒）
+
+在 Streamlit 首页讲五块功能。
+
+## 3.1 Website Crawler
+
+侧边栏指出目标官网和 Website Pages。
+
+口播：
+
+> 系统会从首页开始发现同域链接，并继续抓取 About、Blog、News、GEO Center、白皮书和行业报告等页面。Crawler 会做 URL 规范化、tracking 参数清理和正文内容指纹去重，因此 Website Pages 表示实际保留的唯一正文页面数，而不是请求次数。
+
+切到“网站来源”：
+
+> 每个来源都可以直接点击。显示名称优先使用页面 H1/H2；如果没有合适标题，再回退到 URL path，中文 URL 也会解码为可读形式。
+
+## 3.2 LLM Intent Router
+
+切到“执行概览”。
+
+口播：
+
+> Router 使用 LLM 做语义任务识别，输出 intent、需要的 agents 和 reason。Prompt 里没有 query-to-agent 的示例映射，所以正常路径不是关键词 hardcoding。模型输出之后还会经过 Agent 白名单校验。
+
+## 3.3 Dependency Resolver
+
+指向 Execution Plan。
+
+口播：
+
+> 依赖由代码补齐。例如 question_generator 必须基于 website_analyst 的官网画像；content_strategy 需要使用网站分析、GEO 诊断，以及本次如果被选择的客户问题结果。
+
+## 3.4 Specialist Agents
+
+四个业务 Agent：
+
+- `website_analyst`：官网事实、品牌、产品、客户、核心表达、missing information
+- `geo_diagnostic`：citation readiness、strengths、gaps、rubric
+- `question_generator`：persona、customer stage、自然语言问题、content needed
+- `content_strategy`：把上游 gaps + questions 转成 P0/P1/P2 内容路线
+
+口播：
+
+> 每个 Agent 都有独立 role、goal、prompt 和结构化输出，不只是同一个 Prompt 换几个名字。
+
+## 3.5 Stage-aware Final Synthesis
+
+切到“最终报告”。
+
+口播：
+
+> 最终层不会自动重做全部工作。代码会根据本次真正执行过的 Agents 动态组装最终 Prompt。未调用 GEO Diagnostic，就不会出现 GEO 诊断；未调用 Content Strategy，就不会自行生成 P0/P1/P2 路线。这是为了避免 Final Synthesizer 发生角色越权。
+
+---
+
+# 4. Demo Case 1：证明不是固定调用所有 Agent（约 45 秒）
 
 输入：
 
@@ -46,36 +169,35 @@ python -m streamlit run app.py
 万悉科技官网目前表达了什么？
 ```
 
-重点展示 `Routing Decision`：
+展示：
 
 ```text
-source: llm
-agents:
-- website_analyst
+Routing Source: llm
+Selected Specialists: 1
+
+website_analyst
+→ final_synthesizer
 ```
 
-讲解：
+口播：
 
-> 这个问题只要求理解官网当前表达，因此 LLM Router 只选择 website_analyst。Dependency Resolver 不需要补其他业务 Agent。
+> 这个问题只要求理解官网当前表达，所以 Router 只选择 Website Analyst。这里可以证明系统不会为了“看起来像 Multi-Agent”而每次强制执行全部 Agent。
 
-切到“Agent 结果”，先看默认业务摘要，再按需展开 `website_analyst` 的完整 JSON，简单指出：
+在 Agent 结果里指出：
 
-- brand_positioning
-- products_and_capabilities
-- target_customers
-- core_messages
-- missing_information
-- 每条事实带 source_url / evidence
+- 品牌定位
+- 产品能力
+- 目标客户
+- missing information
+- source_url / evidence
 
-再打开最终报告，强调：
+再切到最终报告：
 
-> 因为本次只执行了 website_analyst，最终报告只包含官网现状、引用来源和边界，不会自行生成 GEO 诊断、客户问题或内容策略。
-
-这个 Case 用来证明：**系统不会为了“看起来像 Multi-Agent”而强制调用所有 Agent。**
+> 最终报告只出现官网现状、引用来源和边界，不会生成 GEO 诊断、客户问题或内容策略。
 
 ---
 
-## Case 2：双 Agent 协作
+# 5. Demo Case 2：证明上下游协作（约 45–60 秒）
 
 输入：
 
@@ -83,36 +205,33 @@ agents:
 请基于万悉官网内容，生成一组目标客户可能向 AI 提出的问题。
 ```
 
-重点展示：
+展示 Execution Plan：
 
 ```text
 website_analyst
     ↓
 question_generator
+    ↓
+final_synthesizer
 ```
 
-讲解：
+口播：
 
-> Router 判断用户需要客户问题生成能力；代码自动补上 website_analyst 作为事实基础。question_generator 通过 CrewAI Task.context 使用上游官网画像，而不是重新猜公司信息。
+> Router 判断需要 Question Generator，代码自动补上 Website Analyst 作为事实基础。Question Generator 通过 CrewAI Task.context 使用上游官网画像，而不是重新猜公司信息。
 
-展开 `question_generator`，指出：
+展示：
 
-- personas
-- questions
+- persona
 - stage
+- query
 - intent
 - content_needed
-- coverage_notes
 
-再展示 Final Synthesizer：
-
-> Stage-aware Final Prompt Builder 这次只允许“官网现状 + 目标客户问题”两个专业章节，因此不会出现 GEO 诊断或 P0/P1/P2 内容策略。
-
-这个 Case 用来证明：**上游 Agent 的结果真实进入下游 Task，且最终输出结构会随执行阶段变化。**
+最终报告只应包含官网现状 + 客户问题，不出现 GEO 诊断和内容策略。
 
 ---
 
-## Case 3：完整 Multi-Agent 协作
+# 6. Demo Case 3：完整 Multi-Agent 主演示（约 2–3 分钟）
 
 输入：
 
@@ -122,7 +241,9 @@ question_generator
 并基于目标客户问题提出内容策略。
 ```
 
-重点展示 Router：
+## 6.1 Router 与执行图
+
+展示：
 
 ```text
 website_analyst
@@ -131,63 +252,114 @@ website_analyst
 └─ content_strategy
 ```
 
-解释依赖：
+解释：
 
-> website_analyst 提供官网事实基线；geo_diagnostic 和 question_generator 都依赖官网画像；content_strategy 同时消费官网分析、GEO 诊断和客户问题，因此这里形成了完整的多 Agent 协作链。
+> Website Analyst 提供官网事实基线；GEO Diagnostic 和 Question Generator 都使用这份画像；Content Strategy 再消费官网分析、GEO gaps 和客户问题，形成真正的协作链。
 
-依次快速展示：
+## 6.2 Website Analyst
 
-### website_analyst
+快速展示：
 
-重点看事实、证据和缺失信息。
+- brand positioning
+- products and capabilities
+- target customers
+- missing information
+- source URL / evidence
 
-### geo_diagnostic
+口播：
 
-重点看：
+> 公司事实必须保留来源和 evidence；未披露的信息保持 missing，而不是让模型自动补齐。
+
+## 6.3 GEO Diagnostic
+
+展示：
 
 - strengths
 - gaps
-- rubric
-- missing_content
+- citation readiness rubric
 
-说明：
+口播：
 
-> GEO 诊断区分官网观察、风险解释和未来建议，不把“可能提高引用”写成确定性结果。
+> 这一层评估内容是否容易被生成式系统理解、抽取和回答，不等于承诺一定获得排名或引用。
 
-### question_generator
+## 6.4 Question Generator
 
-重点看：
+展示代表问题，例如：
 
-- 4 类 persona
-- 不同 customer stage
-- 目标客户自然语言问题
+- 为什么 Google 排名不错，但 ChatGPT 搜不到品牌？
+- 制造企业做 GEO 应该从哪里开始？
+- GEO 和 SEO 有什么区别？
+- GEO 怎么衡量 ROI？
 
-### content_strategy
+口播：
 
-重点看：
+> 问题不是固定模板，而是基于官网目标客户和信息缺口生成，并按 problem awareness、education、solution discovery、vendor comparison、implementation 和 measurement 等阶段组织。
 
-- P0 / P1 / P2
-- target_question
-- reason
-- outline
-- evidence_needed
+## 6.5 Content Strategy
 
-说明：
+展示 P0 / P1 / P2：
 
-> Content Strategy 不是凭空想选题，而是把上游 GEO gaps 和客户问题映射成内容优先级，并明确哪些证据需要企业内部补充。
+```text
+P0
+- 量化 Case Study
+- 服务流程 / 计费 Product Page
+- 联系与 GEO 诊断 FAQ
 
-最后展示 Final Synthesizer：
+P1
+- AI 可见性缺失解释
+- 制造企业 GEO 启动指南
+- AI Citation 指标框架
 
-> 由于这次四个 specialist 都执行了，Stage-aware Final Prompt Builder 才允许完整报告包含官网现状、GEO 诊断、目标客户问题和内容策略四部分。
+P2
+- 行业报告公开摘要
+- 公司基础信息结构化补充
+```
+
+口播：
+
+> 这些选题不是凭空生成，而是把上游 GEO gaps 和客户问题映射成优先级，同时列出 evidence_needed，明确哪些数据必须由企业内部补证。
+
+## 6.6 Final Report
+
+切到最终报告：
+
+> 因为这次四个 specialist 都真实执行了，所以 Stage-aware Final Prompt Builder 才允许最终报告完整包含官网现状、GEO 诊断、客户问题和内容路线。
+
+最后切一下“Raw Debug”：
+
+> 默认页面为了 Demo 可读性展示业务摘要，但完整 Routing JSON、CrewAI Task Trace 和 Agent structured outputs 都保留在 Raw Debug，便于审查。
 
 ---
 
-## 架构总结
+# 7. 工程取舍与边界（约 30–45 秒）
 
-录屏结尾建议用这段：
+口播：
 
-> 这个 Demo 的核心不是 Agent 数量，而是职责边界和执行图。LLM Router 负责语义意图识别，Dependency Resolver 负责确定性工程约束，CrewAI 负责 Agent、Task 和 Task.context 的实际执行，Stage-aware Final Prompt Builder 决定最终报告允许出现哪些专业结果。这样既保留 LLM 的语义理解能力，也避免用关键词 hardcoding 代替意图识别，或者让最终 Agent 越权重做所有 specialist 的工作。
+> 这是三天笔试规模的工程 Demo，所以我优先保证可运行、可解释和职责边界清晰。目前网站检索使用 lexical ranking，不是生产级 embedding/hybrid retrieval；Crew 使用 sequential process，方便展示依赖关系；没有实现线上 citation monitoring、长期 memory 和 JavaScript 页面 Playwright fallback。如果生产化，可以把这些部分分别升级为 hybrid retrieval、并行或 Flow orchestration、checkpoint/memory 和线上监控。
 
-然后补充工程边界：
+---
 
-> 这是三天笔试规模的工程 Demo，目前官网检索采用 lexical ranking，Crew 使用 sequential process，尚未做线上 citation monitoring、长期 memory 或生产级 hybrid retrieval；这些会作为生产化扩展方向，而不是在笔试版本中过度设计。
+# 8. 结尾一句话（约 15 秒）
+
+建议最后直接这样说：
+
+> 这个项目的核心不是 Agent 数量，而是把语义路由、确定性依赖、Agent 专业职责、结构化中间结果和最终整合真正拆开。LLM 决定“用户需要什么能力”，代码保证“任务应该怎么依赖”，CrewAI 执行协作，最终层只整合真实发生过的 specialist 工作。
+
+---
+
+# 录屏检查清单
+
+录之前确认：
+
+- [ ] `git pull origin main`
+- [ ] `python -m pytest -q` 通过
+- [ ] Streamlit 已重启，页面顶部为新版 UI
+- [ ] 不展示 `.env` 和 API Key
+- [ ] Website Pages 与网站来源正常
+- [ ] 来源名称可读且可点击
+- [ ] Case 1 只选 website_analyst
+- [ ] Case 2 选 website_analyst + question_generator
+- [ ] Case 3 四个 specialist 都执行
+- [ ] 最终报告没有未调用 Agent 的越权内容
+- [ ] Raw Debug 可展开完整 JSON / Trace
+- [ ] 录屏前关闭无关窗口、通知与私人信息
