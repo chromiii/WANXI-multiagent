@@ -4,15 +4,14 @@
 
 ### 推荐评审入口
 
-优先提供 **Live Web Demo**，让评审直接在浏览器测试 Router、Agent 调度、中间结果和最终报告；GitHub 用于检查代码和架构；录屏视频作为网络异常时的备用材料。
+本项目以 **GitHub + 录制 Demo** 作为正式交付方式：
 
 ```text
-1. Live Web Demo: https://<your-app-name>.streamlit.app
-2. GitHub: https://github.com/chromiii/WANXI-multiagent
-3. Demo Video: optional backup
+1. Demo Video：展示安装、框架、动态路由、Agent 协作与最终报告
+2. GitHub Repository：检查完整代码、Prompt、测试与 README
 ```
 
-部署步骤见 `DEPLOY.md`.
+推荐视频控制在 **5–8 分钟**，完整录屏顺序与口播见 `DEMO.md`。
 
 GitHub Repository:
 

@@ -6,10 +6,9 @@
 
 ## 快速入口
 
-- [Web Demo 部署说明](DEPLOY.md)
 - [Demo 录屏脚本](DEMO.md)
 - [提交说明 / 项目亮点](SUBMISSION.md)
-- 本地启动：`python -m streamlit run app.py`
+- 启动：`python -m streamlit run app.py`
 - 测试：`python -m pytest -q`
 
 ### 核心链路
@@ -241,7 +240,7 @@ Crawler 会沿首页发现的同域链接继续抓取子页面，并做三层去
 
 ## 本地安装
 
-推荐并固定使用 Python **3.12**。当前云端部署和依赖组合以 Python 3.12 为基准；不要使用 Python 3.14。
+推荐 Python **3.11 或 3.12**。
 
 ### 1. 克隆
 
@@ -324,28 +323,7 @@ CREWAI_VERBOSE=false
 
 不要提交真实 API Key；`.env` 已经在 `.gitignore` 中。
 
-## 在线 Web Demo
-
-本项目可直接部署到 **Streamlit Community Cloud**。推荐把在线网页作为评审主入口，视频作为备用材料。
-
-部署说明见：
-
-```text
-DEPLOY.md
-```
-
-部署参数：
-
-```text
-Repository: chromiii/WANXI-multiagent
-Branch: main
-Main file: app.py
-Python: 3.12
-```
-
-DeepSeek Key 使用 Streamlit Secrets 保存，不提交到 GitHub。
-
-## 启动本地 Web Demo
+## 启动 Web Demo
 
 ```bash
 python -m streamlit run app.py
