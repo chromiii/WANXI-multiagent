@@ -41,11 +41,15 @@ Branch: main
 Main file path: app.py
 ```
 
-在 Advanced settings 中选择：
+在 Advanced settings 中**明确选择**：
 
 ```text
 Python: 3.12
 ```
+
+不要选择 3.14。当前 CrewAI 依赖链会通过 ChromaDB / Pydantic v1 触发兼容性错误。
+
+注意：Streamlit Community Cloud 的 Python 版本在 App 创建后不能原地修改。如果已经用错误版本部署，需要删除该 App 后重新部署，并重新选择 Python 3.12。
 
 ## 3. 配置 Secrets
 
@@ -158,6 +162,12 @@ Streamlit Cloud 的运行实例不应被视为永久磁盘。
 ## 8. 故障排查
 
 如果部署失败：
+
+### `pydantic.v1.errors.ConfigError` / traceback 中出现 `python3.14`
+
+这通常表示 App 被部署在 Python 3.14。请删除当前 App 并重新部署，在 Advanced settings 中选择 Python 3.12。
+
+项目的 `pyproject.toml` 已显式限制为 Python 3.12，以便错误版本在安装阶段就被拒绝。
 
 ### `ModuleNotFoundError: wanxi_geo`
 

@@ -7,7 +7,7 @@ name = "wanxi-geo-agent"
 version = "0.2.0"
 description = "Local CrewAI-based GEO multi-agent demo for WANXI Project 2"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "beautifulsoup4>=4.12,<5",
   "crewai[openai]>=1.15.17,<1.16",
